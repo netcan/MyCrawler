@@ -1,20 +1,26 @@
 from lxml.html import fromstring
 import sqlite3
+import requests
 from sqlite3 import IntegrityError
 
 
 class Exam:
     chapter_range = {
-        'mzdsxhzgteshzylltx': (1, 12),
-        'marxism': (0, 7),
-        'zgjdsgy': (1, 7),
-        'sxddxyyfljc': (0, 7)
+        'mzdsxhzgteshzylltx': range(1, 12 + 1),
+        'marxism': range(0, 7 + 1),
+        'zgjdsgy': range(1, 7 + 1),
+        'sxddxyyfljc': range(0, 7 + 1)
+    }
+    url = "http://10.111.100.107/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
+    headers = {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/62.0.3202.75 Safari/537.36 '
     }
 
     def __init__(self, uid=2016218700):
         self.uid = uid
         self.db = sqlite3.connect('exam.db')
-        for table in Exam.chapter_range.keys():
+        for table in Exam.chapter_range:
             self.db.execute('''
                 CREATE TABLE IF NOT EXISTS "{}"(
                 [_id] integer PRIMARY KEY AUTOINCREMENT
@@ -32,46 +38,64 @@ class Exam:
             '''.format(table))
 
     def crawler(self):
-        html = open('/Users/netcan/Downloads/合肥工业大学在线练习系统.html', 'r', encoding='gbk').read()
-        chapter = 0
-        subject = 'marxism'
-        root = fromstring(html)
-        questions = [q.value for q in root.cssselect('input[id^="question"]')]
-        ans = [a.value for a in root.cssselect('input[id^="answer"]')]
-        for id, (question, ans) in enumerate(zip(questions, ans)):
-            data = {
-                'chapter': str(chapter),
-                'question': question,  # 题目
-                'answer': ans,
-                'a': str(),
-                'b': str(),
-                'c': str(),
-                'd': str(),
-            }
-            data['type'] = 1 if data['answer'] in '01' else \
-                           2 if len(data['answer']) == 1 else 3
+        # 爬取题库并存储至sqlite数据库
+        for subject in Exam.chapter_range:
+            for chapter in Exam.chapter_range[subject]:
+                retry_times = 0
+                ques_count = 0
+                while retry_times < 30:
+                    cur_ques_count = len(self.db.execute('select * from {}'.format(subject)).fetchall())
+                    retry_times = 0 if cur_ques_count != ques_count \
+                        else retry_times + 1
+                    ques_count = cur_ques_count
 
-            try:
-                if data['type'] != 1:  # 选择题
-                    for s in list('abcd'):
-                        data[s] = root.cssselect('input[id$="{}{}"]'.format(s, id + 1))[0].value
-                    self.db.execute('''
-                        INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
-                                VALUES ("{}", "{}", "{}", "{}", "{}", "{}", "{}", "{}")
-                    '''.format(subject, data['type'], data['question'],
-                               data['a'], data['b'], data['c'], data['d'],
-                               data['answer'], chapter))
-                else:
-                    self.db.execute('''
-                        INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
-                                VALUES ("{}", "{}", NULL, NULL, NULL, NULL, "{}", "{}")
-                    '''.format(subject, data['type'], data['question'],
-                               data['answer'], chapter))
-            except IntegrityError:
-                pass
+                    if subject == 'mzdsxhzgteshzylltx' and chapter > 7:
+                        r = requests.get(Exam.url.format(subject + '2', chapter - 7, self.uid), headers=Exam.headers)
+                    else:
+                        r = requests.get(Exam.url.format(subject, chapter, self.uid), headers=Exam.headers)
 
-            # print(data)
-        print('已抓取', len(self.db.execute('select * from {}'.format(subject)).fetchall()), '条')
+                    r.encoding = 'gbk'
+                    html = r.text
+                    root = fromstring(html)
+
+                    questions = [q.value for q in root.cssselect('input[id^="question"]')]
+                    ans = [a.value for a in root.cssselect('input[id^="answer"]')]
+                    for qid, (question, ans) in enumerate(zip(questions, ans)):
+                        data = {
+                            'chapter': str(chapter),
+                            'question': question,  # 题目
+                            'answer': ans,
+                            'a': str(),
+                            'b': str(),
+                            'c': str(),
+                            'd': str(),
+                        }
+                        # 1判断 2单选 3多选
+                        data['type'] = 1 if data['answer'] in '01' else \
+                                       2 if len(data['answer']) == 1 else 3
+
+                        try:
+                            if data['type'] != 1:  # 选择题
+                                for s in list('abcd'):
+                                    data[s] = root.cssselect('input[id$="{}{}"]'.format(s, qid + 1))[0].value
+                                self.db.execute('''
+                                    INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
+                                            VALUES ("{}", "{}", "{}", "{}", "{}", "{}", "{}", "{}")
+                                '''.format(subject, data['type'], data['question'],
+                                           data['a'], data['b'], data['c'], data['d'],
+                                           data['answer'], data['chapter']))
+                            else:
+                                self.db.execute('''
+                                    INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
+                                            VALUES ("{}", "{}", NULL, NULL, NULL, NULL, "{}", "{}")
+                                '''.format(subject, data['type'], data['question'],
+                                           data['answer'], data['chapter']))
+                        except IntegrityError:
+                            pass
+
+                    print('{}已抓取'.format(subject), ques_count, '条')
+                print('{}已抓取'.format(subject), ques_count, '条')
+
         self.db.commit()
 
 
