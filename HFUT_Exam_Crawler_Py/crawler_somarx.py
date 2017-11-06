@@ -2,6 +2,7 @@ import requests, sqlite3
 from lxml.html import fromstring
 from requests.compat import urljoin
 from sqlite3 import IntegrityError
+from DESCipher import DESCipher
 
 
 class Exam:
@@ -22,15 +23,13 @@ class Exam:
         'zgjdsgy': {'courseId': 2},
         'sxddxyyfljc': {'courseId': 4}
     }
-    escape = str.maketrans({
-        "'": r"\'",
-    })
 
-    def __init__(self):
+    def __init__(self, password=None):
         self.cookies = requests.cookies.RequestsCookieJar()
         # 登陆后，获取session_id，保存id就能保持会话，不需要重复登陆了
         self.cookies.set('ASP.NET_SessionId', '', domain='www.somarx.cn', path='/')
         self.db = sqlite3.connect('exam_somarx.db')
+        self.cipher = DESCipher(password) if password else None
         for table in Exam.chapter_range:
             self.db.execute('''
                 CREATE TABLE IF NOT EXISTS "{}"(
@@ -65,11 +64,14 @@ class Exam:
                 selection = html.cssselect('ol[type="A"]')
                 right_ans = [a.text for a in html.cssselect('b.right-answer')]
                 for ques, sel, ra in zip(question, selection, right_ans):
+                    if self.cipher:
+                        ques = self.cipher.encrypt(ques)
+
                     if ra in '对错':
                         ra = '1' if ra == '对' else '0'
                     data = {
                         'chapter': str(cid if course != 'mzdsxhzgteshzylltx' else cid + 1),
-                        'question': ques.translate(Exam.escape),  # 题目
+                        'question': ques,  # 题目
                         'answer': ra,
                         'a': str(),
                         'b': str(),
@@ -82,7 +84,7 @@ class Exam:
                     try:
                         if data['type'] != 1:
                             for s, sc in zip(list('abcd'), sel.xpath('li/p/text()')):
-                                data[s] = sc.translate(Exam.escape)
+                                data[s] = sc if not self.cipher else self.cipher.encrypt(sc)
                             self.db.execute("INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) VALUES (?, ?, "
                                             "?, ?, ?, ?, ?, ?) ".format(course),
                                             (data['type'], data['question'],

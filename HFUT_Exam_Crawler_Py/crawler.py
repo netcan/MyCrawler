@@ -43,14 +43,20 @@ class Exam:
             for chapter in Exam.chapter_range[subject]:
                 retry_times = 0
                 ques_count = 0
-                while retry_times < 30:
+                while retry_times < 20:
                     cur_ques_count = len(self.db.execute('select * from {}'.format(subject)).fetchall())
-                    retry_times = 0 if cur_ques_count != ques_count \
-                        else retry_times + 1
-                    ques_count = cur_ques_count
+                    if cur_ques_count != ques_count:
+                        retry_times = 0
+                        ques_count = cur_ques_count
+                        print('{}已抓取'.format(subject), ques_count, '条，第 {}'.format(chapter), '章')
+                    else:
+                        retry_times += 1
 
-                    if subject == 'mzdsxhzgteshzylltx' and chapter > 7:
-                        r = requests.get(Exam.url.format(subject + '2', chapter - 7, self.uid), headers=Exam.headers)
+                    if subject == 'mzdsxhzgteshzylltx':
+                        if chapter > 7:
+                            r = requests.get(Exam.url.format(subject + '2', chapter - 7, self.uid), headers=Exam.headers)
+                        else:
+                            r = requests.get(Exam.url.format(subject + '1', chapter, self.uid), headers=Exam.headers)
                     else:
                         r = requests.get(Exam.url.format(subject, chapter, self.uid), headers=Exam.headers)
 
@@ -71,6 +77,7 @@ class Exam:
                             'd': str(),
                         }
                         # 1判断 2单选 3多选
+                        data['answer'] = data['answer'].replace('O', '0')
                         data['type'] = 1 if data['answer'] in '01' else \
                                        2 if len(data['answer']) == 1 else 3
 
@@ -78,22 +85,20 @@ class Exam:
                             if data['type'] != 1:  # 选择题
                                 for s in list('abcd'):
                                     data[s] = root.cssselect('input[id$="{}{}"]'.format(s, qid + 1))[0].value
-                                self.db.execute('''
-                                    INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
-                                            VALUES ("{}", "{}", "{}", "{}", "{}", "{}", "{}", "{}")
-                                '''.format(subject, data['type'], data['question'],
-                                           data['a'], data['b'], data['c'], data['d'],
-                                           data['answer'], data['chapter']))
+                                self.db.execute("INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) VALUES ("
+                                                "?, ?, ?, ?, ?, ?, ?, ?) ".format(subject),
+                                                (data['type'], data['question'],
+                                                 data['a'], data['b'], data['c'], data['d'],
+                                                 data['answer'], data['chapter']))
                             else:
-                                self.db.execute('''
-                                    INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) 
-                                            VALUES ("{}", "{}", NULL, NULL, NULL, NULL, "{}", "{}")
-                                '''.format(subject, data['type'], data['question'],
-                                           data['answer'], data['chapter']))
+                                self.db.execute(
+                                    'INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) VALUES (?, ?, NULL, '
+                                    'NULL, NULL, NULL, ?, ?)'.format(subject),
+                                    (data['type'], data['question'],
+                                     data['answer'], data['chapter']))
                         except IntegrityError:
                             pass
 
-                    print('{}已抓取'.format(subject), ques_count, '条')
                 print('{}已抓取'.format(subject), ques_count, '条')
 
         self.db.commit()
