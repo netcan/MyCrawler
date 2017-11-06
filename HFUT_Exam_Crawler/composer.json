@@ -1,0 +1,5 @@
+{
+	"require": {
+		"shark/simple_html_dom": "dev-master"
+	}
+}

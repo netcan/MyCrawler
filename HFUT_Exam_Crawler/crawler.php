@@ -1,5 +1,5 @@
 <?php
-include("simple_html_dom.php");
+require 'vendor/autoload.php';
 
 /* Subject选项：
 	毛中特: mzdsxhzgteshzylltx
