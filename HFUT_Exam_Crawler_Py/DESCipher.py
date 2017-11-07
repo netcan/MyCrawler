@@ -19,11 +19,11 @@ class DESCipher:
         if not isinstance(raw, bytes):
             raise TypeError
         content = self.cipher.decrypt(raw)
-        len = 0
+        length = len(raw)
         for c in content[::-1]:
             if c == 23:
-                len += 1
+                length -= 1
             else:
                 break
-        return content[:-len].decode('utf8')
+        return content[:length].decode('utf8')
 

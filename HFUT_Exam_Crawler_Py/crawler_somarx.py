@@ -40,10 +40,9 @@ class Exam:
                 ,[b] VARCHAR(200) COLLATE NOCASE
                 ,[c] VARCHAR(200) COLLATE NOCASE
                 ,[d] VARCHAR(200) COLLATE NOCASE
+                ,[e] VARCHAR(200) COLLATE NOCASE
                 ,[answer] VARCHAR(200) COLLATE NOCASE
                 ,[chapter] VARCHAR(200) COLLATE NOCASE
-                ,[collection] integer COLLATE NOCASE
-                ,[myAnswer] varchar(200) COLLATE NOCASE
                 );
             '''.format(table))
 
@@ -77,25 +76,24 @@ class Exam:
                         'b': str(),
                         'c': str(),
                         'd': str(),
+                        'e': str(),
                     }
                     # 1判断 2单选 3多选
                     data['type'] = 1 if data['answer'] in '01' else \
                         2 if len(data['answer']) == 1 else 3
                     try:
                         if data['type'] != 1:
-                            for s, sc in zip(list('abcd'), sel.xpath('li/p/text()')):
+                            for s, sc in zip(list('abcde'), sel.xpath('li/p/text()')):
                                 data[s] = sc if not self.cipher else self.cipher.encrypt(sc)
-                            self.db.execute("INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) VALUES (?, ?, "
-                                            "?, ?, ?, ?, ?, ?) ".format(course),
+                            self.db.execute("INSERT INTO {} (type, subject, a, b, c, d, e, answer, chapter) VALUES ("
+                                            "?, ?, ?, ?, ?, ?, ?, ?, ?) ".format(course),
                                             (data['type'], data['question'],
-                                             data['a'], data['b'], data['c'], data['d'],
+                                             data['a'], data['b'], data['c'], data['d'], data['e'],
                                              data['answer'], data['chapter']))
                         else:
                             self.db.execute(
-                                'INSERT INTO {} (type, subject, a, b, c, d, answer, chapter) VALUES (?, ?, NULL, NULL, '
-                                'NULL, NULL, ?, ?)'.format(course),
-                                (data['type'], data['question'],
-                                 data['answer'], data['chapter']))
+                                "INSERT INTO {} (type, subject, answer, chapter) VALUES (?, ?, ?, ?)".format(course),
+                                (data['type'], data['question'], data['answer'], data['chapter']))
                     except IntegrityError:
                         pass
                 print('{}第{}章已抓取'.format(course, data['chapter']), len(question), '条')
