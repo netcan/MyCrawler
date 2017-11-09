@@ -9,9 +9,12 @@ class Exam:
         'mzdsxhzgteshzylltx': range(1, 12 + 1),
         'marxism': range(0, 7 + 1),
         'zgjdsgy': range(1, 7 + 1),
-        'sxddxyyfljc': range(0, 7 + 1)
+        'sxddxyyfljc': range(0, 8 + 1)
     }
+    # 宣城校区
     url = "http://10.111.100.107/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
+    # 合肥校区？
+    # url = "http://222.195.7.159/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
     headers = {
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) '
                       'Chrome/62.0.3202.75 Safari/537.36 '
