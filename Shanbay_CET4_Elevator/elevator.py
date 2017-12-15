@@ -1,6 +1,6 @@
 from functools import wraps
 
-import json
+import json, re
 import requests
 
 
@@ -19,6 +19,7 @@ class Elevator:
         self.__logined = False
 
     def login(self):
+        print("Login:")
         if not self.__logined:
             data = {
                 'username': self.username,
@@ -28,8 +29,8 @@ class Elevator:
             self.session.put(Elevator.login_url, data=data)
             r = json.loads(self.session.put(Elevator.login_url, data=data).text)
             if r['msg'] == 'SUCCESS':
-                print('登陆成功')
                 self.__logined = True
+            print(r['msg'])
 
     def login_required(fun):
         @wraps(fun)
@@ -46,14 +47,21 @@ class Elevator:
         :return:
         """
         grammar_lists = json.loads(self.session.get(Elevator.api + '/parts/bclhtz/stages/').text)['data']
-        for id, section in enumerate(grammar_lists):
-            content = json.loads(self.session.get(self.rest_url + '/tasks/{}/'.format(section['object_id'])).text)['data']
-            print('=====================')
-            print(id, section['title'])
-            try:
-                print(content['intro'])
-                print(content['knowledge'])
-            except KeyError:
-                print('NULL')
+        with open('grammar.md', 'w') as f:
+            for idx, section in enumerate(grammar_lists):
+                if idx >= 46:
+                    break
+                content = json.loads(self.session.get(self.rest_url + '/tasks/{}/'.format(section['object_id'])).text)['data']
+                # print('=====================')
+                # print(idx, section['title'])
+                try:
+                    if content['knowledge'] or content['intro']:
+                        f.write('# ' + section['title'] + '\n')
+                    f.write(re.sub('\d\.', '##', re.sub('\d\.\d', '###', content['intro'])) + '\n\n')
+                    f.write(re.sub('\d\.', '##', re.sub('\d\.\d', '###', content['knowledge'])) + '\n\n')
+                    # print(content['intro'])
+                    # print(content['knowledge'])
+                except KeyError:
+                    pass
 
 
