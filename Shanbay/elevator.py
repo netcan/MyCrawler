@@ -1,10 +1,11 @@
-from functools import wraps
+from login import login
 
 import json, re
 import requests
 
 
 class Elevator:
+    # 扇贝阶梯训练
     api = 'https://www.shanbay.com/api/v2/elevator'
     rest_url = 'https://rest.shanbay.com/api/v2/elevator'
     login_url = 'https://rest.shanbay.com/api/v1/account/login'
@@ -12,40 +13,15 @@ class Elevator:
                  'frontend/1.8 api/2.3 '
 
     def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.session = requests.Session()
-        self.session.headers['User-Agent'] = Elevator.user_agent
-        self.__logined = False
+        self.session = login(username, password)
+        assert isinstance(self.session, requests.sessions.Session), '登陆失败！'
 
-    def login(self):
-        print("Login:")
-        if not self.__logined:
-            data = {
-                'username': self.username,
-                'password': self.password,
-                'token': None
-            }
-            self.session.put(Elevator.login_url, data=data)
-            r = json.loads(self.session.put(Elevator.login_url, data=data).text)
-            if r['msg'] == 'SUCCESS':
-                self.__logined = True
-            print(r['msg'])
-
-    def login_required(fun):
-        @wraps(fun)
-        def wrapper(self, *args, **kwargs):
-            if not self.__logined:
-                self.login()
-            fun(self, *args, *kwargs)
-        return wrapper
-
-    @login_required
     def grammar(self):
         """
         爬取阶梯训练语法部分
         :return:
         """
+        assert isinstance(self.session, requests.sessions.Session), '登陆失败！'
         grammar_lists = json.loads(self.session.get(Elevator.api + '/parts/bclhtz/stages/').text)['data']
         with open('grammar.md', 'w') as f:
             for idx, section in enumerate(grammar_lists):
