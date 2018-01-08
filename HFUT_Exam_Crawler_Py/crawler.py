@@ -12,17 +12,17 @@ class Exam:
         'sxddxyyfljc': range(0, 8 + 1)
     }
     # 宣城校区
-    url = "http://10.111.100.107/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
+    # url = "http://10.111.100.107/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
     # 合肥校区？
-    # url = "http://222.195.7.159/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
+    url = "http://222.195.7.159/exercise/singleChapter.asp?subtable={}&chapter={}&sid={}"
     headers = {
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) '
                       'Chrome/62.0.3202.75 Safari/537.36 '
     }
 
-    def __init__(self, uid=2016218700):
+    def __init__(self, uid=2016218000, dbname='exam.db'):
         self.uid = uid
-        self.db = sqlite3.connect('exam.db')
+        self.db = sqlite3.connect(dbname)
         for table in Exam.chapter_range:
             self.db.execute('''
                 CREATE TABLE IF NOT EXISTS "{}"(

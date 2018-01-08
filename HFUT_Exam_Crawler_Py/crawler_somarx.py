@@ -24,11 +24,11 @@ class Exam:
         'sxddxyyfljc': {'courseId': 4}
     }
 
-    def __init__(self, password=None):
+    def __init__(self, password=None, dbname='exam_somarx.db'):
         self.cookies = requests.cookies.RequestsCookieJar()
         # 登陆后，获取session_id，保存id就能保持会话，不需要重复登陆了
         self.cookies.set('ASP.NET_SessionId', '', domain='www.somarx.cn', path='/')
-        self.db = sqlite3.connect('exam_somarx.db')
+        self.db = sqlite3.connect(dbname)
         self.cipher = DESCipher(password) if password else None
         for table in Exam.chapter_range:
             self.db.execute('''
