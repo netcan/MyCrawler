@@ -4,3 +4,4 @@ composer.lock
 __pycache__
 output
 .DS_Store
+/private
