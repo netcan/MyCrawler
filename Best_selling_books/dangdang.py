@@ -1,8 +1,9 @@
-import requests, re, os
+import re, os
 import pandas as pd
+import pickle, threading, time
 from util.downloader import Downloader
 from util.redisCache import RedisCache
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from lxml.html import fromstring
 
 
@@ -14,16 +15,19 @@ class Dangdang:
     url = 'http://bang.dangdang.com/books/bestsellers/{}-{}-{}'
 
     def __init__(self):
-        self.books_list_info = namedtuple('bli', ['category', 'list'])
-        self.bs_books_list = []
+        if not os.path.exists('output'):
+            os.mkdir('output')
+        self.bs_books = {}
+        self.stopped = False
+        self.queue = []
         self.category_dict = {}
         self.downloader = Downloader(0, RedisCache())
         pass
 
     def get_category_list(self):
         url = 'http://bang.dangdang.com/books/bestsellers/'
-        res = requests.get(url, headers=self.headers)
-        html = fromstring(res.text)
+        res = self.downloader(url)
+        html = fromstring(res)
         self.category_dict = {
             cid.attrib['category_path']: cid.cssselect('a')[0].text for cid in
             html.cssselect('#sortRanking .side_nav')
@@ -46,38 +50,86 @@ class Dangdang:
                     name=lst.cssselect('.name a')[0].attrib['title'],
                     publish_date=publish_date,
                     ISBN=None,
+                    price=None,
                     url=book_url
                 )
                 # book.update(self.get_book_info(book_url))
                 # print(book)
                 books.append(book)
 
-        self.bs_books_list.append(
-            self.books_list_info(self.category_dict[cid], books)
-        )
+        self.bs_books[cid] = books
 
-    def get_book_info(self, book_url):
-        res = requests.get(book_url, headers=self.headers)
-        html = fromstring(res.text)
-        return {
-            'ISBN': re.findall('国际标准书号ISBN：(\d+)', html.cssselect('ul.key')[0].text_content())[0]
-        }
+    def _update_book_info(self, cid, bid, book_url):
+        book = self.bs_books[cid][bid]
+        if not book['ISBN'] or not book['price']:
+            res = self.downloader(book_url)
+            html = fromstring(res)
+            try:
+                book.update({
+                    'ISBN': re.findall('国际标准书号ISBN：(\d+)', html.cssselect('ul.key')[0].text_content())[0],
+                    'price': html.cssselect('#original-price')[0].text_content().strip()
+                })
+            except IndexError:
+                print(book_url)
+
+            print(book['name'], book['ISBN'])
+
+    def update_books_info(self, max_threads=4):
+        self.queue = []
+        for cid, books_info in self.bs_books.items():
+            for bid, book_info in enumerate(books_info):
+                self.queue.append((cid, bid, book_info['url']))
+
+        def mt():
+            while not self.stopped and len(self.queue):
+                book_ifo = self.queue.pop()
+                self._update_book_info(*book_ifo)
+                print('remain: ', len(self.queue))
+
+        threads = []
+        while not self.stopped and (threads or len(self.queue)):
+            for thread in threads:
+                if not thread.is_alive():
+                    threads.remove(thread)
+
+            while len(threads) < max_threads and len(self.queue):
+                thread = threading.Thread(target=mt, daemon=True)
+                thread.start()
+                threads.append(thread)
+
+            # don't block it
+            # for thread in threads:
+            #     thread.join()
+
+            time.sleep(1)
+
+        self.save_obj()
+
+    def save_obj(self):
+        with open('output/category_dict.pkl', 'wb') as f:
+            pickle.dump(self.category_dict, f, pickle.HIGHEST_PROTOCOL)
+        with open('output/bs_books.pkl', 'wb') as f:
+            pickle.dump(self.bs_books, f, pickle.HIGHEST_PROTOCOL)
+
+    def load_obj(self):
+        with open('output/category_dict.pkl', 'rb') as f:
+            self.category_dict = pickle.load(f)
+        with open('output/bs_books.pkl', 'rb') as f:
+            self.bs_books = pickle.load(f)
 
     def save_books_list(self):
-        if not os.path.exists('results'):
-            os.mkdir('results')
-
-        writer = pd.ExcelWriter('results/当当网畅销书汇总 by netcan.xlsx')
-        for books in self.bs_books_list:
-            books_df = pd.DataFrame(books.list)
-            books_df.to_excel(writer, books.category.replace('/', ','), index=False)
+        writer = pd.ExcelWriter('output/当当网畅销书汇总 by netcan.xlsx')
+        for cid, books in self.bs_books.items():
+            books_df = pd.DataFrame(books)
+            books_df.to_excel(writer, self.category_dict[cid].replace('/', ''), index=False)
         writer.save()
 
     def get_all(self):
         self.get_category_list()
-        for category, cname in self.category_dict.items():
-            print(cname)
-            self.get_books_list(category)
+        for cnt, (cid, cname) in enumerate(self.category_dict.items()):
+            print(cname, cnt + 1, '/', len(self.category_dict))
+            self.get_books_list(cid)
+        self.save_obj()
 
 
 if __name__ == '__main__':

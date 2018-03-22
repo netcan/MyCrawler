@@ -5,3 +5,4 @@ __pycache__
 output
 .DS_Store
 /private
+dump.rdb

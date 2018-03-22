@@ -7,8 +7,9 @@ class Downloader:
         self.throttle = Throttle(delay)
         self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/61.0.3163.100 Safari/537.36"
-        self.proxies = dict(http='socks5://127.0.0.1:1086',
-                            https='socks5://127.0.0.1:1086')
+        # self.proxies = dict(http='socks5://127.0.0.1:1086',
+        #                     https='socks5://127.0.0.1:1086')
+        self.proxies = None
         self.cache = cache
         self.num_retries = None
 
@@ -35,7 +36,7 @@ class Downloader:
             resp = requests.get(url, headers={
                 'User-Agent': self.user_agent
             }, proxies=self.proxies)
-            resp.encoding = 'utf8'
+            # resp.encoding = 'utf8'
             html = resp.text
             if resp.status_code >= 400:
                 print('Download error: ' + html)
